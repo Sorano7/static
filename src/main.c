@@ -38,6 +38,12 @@ int main(void)
         if (IsKeyPressed(KEY_LEFT))      ed_move(ed, DIR_LEFT);
         if (IsKeyPressed(KEY_RIGHT))     ed_move(ed, DIR_RIGHT);
 
+        if (IsKeyDown(KEY_LEFT_CONTROL))
+        {
+            if (IsKeyPressed(KEY_EQUAL)) font_size += 2;
+            if (IsKeyPressed(KEY_MINUS)) font_size -= 2;
+        }
+
         BeginDrawing();
             Vector2 line_size = MeasureTextEx(font, "A", font_size, 0);
             float line_h = line_spacing + line_size.y;
