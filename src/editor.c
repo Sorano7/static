@@ -9,22 +9,22 @@ typedef struct Editor
     size_t row, col;
 } Editor;
 
-static void new_line(Editor *ed, size_t at)
+static void alloc_newline(Editor *ed, size_t at)
 {
     String *line = malloc(sizeof(String));
     str_init(line);
     da_insert(&ed->lines, line, at);
 }
 
-Editor *ed_create(void)
+Editor *editor_create(void)
 {
     Editor *ed = calloc(1, sizeof(Editor));
     da_init(&ed->lines);
-    new_line(ed, 0);
+    alloc_newline(ed, 0);
     return ed;
 }
 
-void ed_free(Editor *ed)
+void editor_free(Editor *ed)
 {
     if (!ed) return;
     DA_FOREACH(&ed->lines, String *, line)
@@ -32,24 +32,34 @@ void ed_free(Editor *ed)
     da_free(&ed->lines);
 }
 
-size_t ed_get_row(Editor *ed)
+size_t editor_row(Editor *ed)
 {
     return ed->row;
 }
 
-size_t ed_get_col(Editor *ed)
+size_t editor_col(Editor *ed)
 {
     return ed->col;
 }
 
-static String *current_line(Editor *ed)
+size_t editor_line_count(Editor *ed)
+{
+    return ed->lines.len;
+}
+
+const char *editor_getline(Editor *ed, size_t row)
+{
+    return ed->lines.data[row]->data;
+}
+
+static String *get_current_line(Editor *ed)
 {
     return ed->lines.data[ed->row];
 }
 
 static void clamp_col(Editor *ed)
 {
-    size_t line_len = current_line(ed)->len;
+    size_t line_len = get_current_line(ed)->len;
     if (ed->col > line_len) ed->col = line_len;
 }
 
@@ -59,10 +69,13 @@ static void clamp_row(Editor *ed)
         ed->row = ed->lines.len - 1;
 }
 
-void ed_move(Editor *ed, Direction dir)
+static void move_cursor(Editor *ed, Direction dir)
 {
     switch (dir)
     {
+        case DIR_NONE:
+            break;
+
         case DIR_UP:
             if (ed->row > 0) ed->row--;
             clamp_col(ed);
@@ -79,43 +92,43 @@ void ed_move(Editor *ed, Direction dir)
             break;
 
         case DIR_RIGHT:
-            if (ed->col < current_line(ed)->len) ed->col++;
+            if (ed->col < get_current_line(ed)->len) ed->col++;
             break;
     }
 }
 
-void ed_insert_char(Editor *ed, char c)
+static void insert_chr(Editor *ed, char c)
 {
-    String *line = current_line(ed);
+    String *line = get_current_line(ed);
     str_insert_char(line, (char)c, ed->col);
     ed->col++;
 }
 
-void ed_insert_str(Editor *ed, const char *str)
+static void insert_str(Editor *ed, const char *str)
 {
     while (*str)
     {
-        ed_insert_char(ed, *str);
+        insert_chr(ed, *str);
         str++;
     }
 }
 
-void ed_linebreak(Editor *ed)
+static void handle_split_line(Editor *ed)
 {
     if (ed->col == 0)
     {
-        new_line(ed, ed->row++);
+        alloc_newline(ed, ed->row++);
     }
     else
     {
-        String *line = current_line(ed);
-        new_line(ed, ++ed->row);
+        String *line = get_current_line(ed);
+        alloc_newline(ed, ++ed->row);
 
         if (ed->col != line->len)
         {
             StringView after = SV(line);
             StringView before = sv_shift(&after, ed->col);
-            str_append(current_line(ed), after);
+            str_append(get_current_line(ed), after);
             line->len = before.len;
             str_append_null(line);
         }
@@ -123,35 +136,35 @@ void ed_linebreak(Editor *ed)
     ed->col = 0;
 }
 
-void ed_newline(Editor *ed, bool below)
+static void handle_insert_line(Editor *ed, bool below)
 {
-    new_line(ed, below ? ++ed->row : ed->row);
+    alloc_newline(ed, below ? ++ed->row : ed->row);
     ed->col = 0;
 }
 
-static void remove_line(Editor *ed)
+static void free_current_line(Editor *ed)
 {
-    str_free(current_line(ed));
+    str_free(get_current_line(ed));
     da_remove(&ed->lines, ed->row);
 }
 
-void ed_remove_line(Editor *ed)
+static void handle_remove_line(Editor *ed)
 {
     if (ed->lines.len == 1)
     {
-        str_reset(current_line(ed));
+        str_reset(get_current_line(ed));
         ed->col = 0;
         return;
     }
 
-    remove_line(ed);
+    free_current_line(ed);
     clamp_row(ed);
     clamp_col(ed);
 }
 
-void ed_backspace(Editor *ed)
+static void handle_delete(Editor *ed)
 {
-    String *line = current_line(ed);
+    String *line = get_current_line(ed);
     if (ed->col > 0)
     {
         str_remove(line, ed->col-1);
@@ -167,17 +180,23 @@ void ed_backspace(Editor *ed)
         if (line->len > 0)
             str_append(prev, line);
 
-        remove_line(ed);
+        free_current_line(ed);
         ed->row--;
     }
 }
 
-size_t ed_line_count(Editor *ed)
+void editor_handle_action(Editor *ed, Action action)
 {
-    return ed->lines.len;
-}
-
-const char *ed_getline(Editor *ed, size_t row)
-{
-    return ed->lines.data[row]->data;
+    switch (action.kind)
+    {
+        case ACTION_INSERT_CHR:    insert_chr(ed, action.chr);    break;
+        case ACTION_INSERT_STR:    insert_str(ed, action.str);    break;
+        case ACTION_DELETE:        handle_delete(ed);             break;
+        case ACTION_REMOVE_LINE:   handle_remove_line(ed);        break;
+        case ACTION_NEWLINE_BELOW: handle_insert_line(ed, true);  break;
+        case ACTION_NEWLINE_ABOVE: handle_insert_line(ed, false); break;
+        case ACTION_SPLIT_LINE:    handle_split_line(ed);         break;
+        case ACTION_CURSOR_MOVE:   move_cursor(ed, action.dir);   break;
+        default:                   UNREACHABLE();
+    }
 }

@@ -5,32 +5,51 @@
 
 typedef struct Editor Editor;
 
-Editor *ed_create(void);
-void ed_free(Editor *ed);
+Editor *editor_create(void);
+void editor_free(Editor *ed);
 
-size_t ed_get_row(Editor *ed);
-size_t ed_get_col(Editor *ed);
+size_t editor_row(Editor *ed);
+size_t editor_col(Editor *ed);
+
+size_t editor_line_count(Editor *ed);
+const char *editor_getline(Editor *ed, size_t row);
 
 typedef enum
 {
+    DIR_NONE,
     DIR_UP,
     DIR_DOWN,
     DIR_LEFT,
     DIR_RIGHT,
 } Direction;
 
-void ed_move(Editor *ed, Direction dir);
+typedef enum
+{
+    ACTION_INSERT_CHR,
+    ACTION_INSERT_STR,
+    ACTION_DELETE,
 
-void ed_insert_char(Editor *ed, char c);
-void ed_insert_str(Editor *ed, const char *str);
+    ACTION_REMOVE_LINE,
+    ACTION_NEWLINE_BELOW,
+    ACTION_NEWLINE_ABOVE,
+    ACTION_SPLIT_LINE,
 
-void ed_linebreak(Editor *ed);
-void ed_newline(Editor *ed, bool below);
-void ed_remove_line(Editor *ed);
+    ACTION_CURSOR_MOVE,
+} ActionKind;
 
-void ed_backspace(Editor *ed);
+typedef struct
+{
+    ActionKind kind;
+    union
+    {
+        Direction dir;
+        char chr;
+        const char *str;
+    };
+} Action;
 
-size_t ed_line_count(Editor *ed);
-const char *ed_getline(Editor *ed, size_t row);
+void editor_handle_action(Editor *ed, Action action);
+#define editor_do(_ed, _act_kind, ...) editor_handle_action((_ed), \
+        (Action){(_act_kind), .dir=DIR_NONE, __VA_ARGS__})
 
 #endif

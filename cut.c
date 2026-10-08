@@ -17,7 +17,8 @@ int main(int argc, char **argv)
     cut_unit_sources(&app, "src/editor.c");
 
     cut_unit_includes(&app, "include");
-    cut_unit_flags(&app, "-g", "-Wall", "-Wextra", "-Wno-override-init");
+    cut_unit_defines(&app, "_DEFAULT_SOURCE")
+    cut_unit_flags(&app, "-std=c23", "-g", "-Wall", "-Wextra", "-Wno-override-init");
 
     cut_unit_libs(&app, RAYLIB_DEPS);
 
