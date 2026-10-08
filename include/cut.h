@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <assert.h>
 
 /************************************************
  * Dynamic Array
@@ -96,6 +97,24 @@
     da_appendn((da), (from)->data, (from)->len); \
 } while (0)
 
+#define da_insert(da, item, at) do { \
+    size_t _at = (at); \
+    assert(_at <= (da)->len); \
+    da_grow(da); \
+    memmove(&(da)->data[_at+1], &(da)->data[_at], \
+            ((da)->len - _at) * sizeof(*(da)->data)); \
+    (da)->data[_at] = (item); \
+    (da)->len++; \
+} while (0)
+
+#define da_remove(da, at) do { \
+    size_t _at = (at); \
+    assert(_at < (da)->len); \
+    memmove(&(da)->data[_at], &(da)->data[_at+1], \
+            ((da)->len - _at - 1) * sizeof(*(da)->data)); \
+    (da)->len--; \
+} while (0)
+
 /************************************************
  * Strings
  ************************************************/
@@ -168,6 +187,16 @@ void str_appendf(String *s, const char *fmt, ...);
 // Append a variadic formatted string to the string.
 void str_appendvf(String *s, const char *fmt, va_list args);
 
+#define str_insert_char(s, item, at) do { \
+    da_insert((s), (item), (at)); \
+    str_append_null(s); \
+} while (0)
+
+#define str_remove(s, at) do { \
+    da_remove((s), (at)); \
+    str_append_null(s); \
+} while (0)
+
 // Initializes a string.
 #define str_init(s) do { \
     da_init(s); \
@@ -199,9 +228,6 @@ void str_appendvf(String *s, const char *fmt, va_list args);
     str_reserve((s), (from)->len+1); \
     str_append((s), (from)); \
 } while (0)
-
-// Insert an element at index n.
-void str_insert(String *s, char v, size_t n);
 
 // Find the index of a character.
 size_t sv_find(StringView s, char v);
@@ -611,7 +637,6 @@ CutFPResult cut_fp_parse(CutFlagParser *fp, int argc, char **argv, SVList *out);
 // #define CUT_IMPL
 #ifdef CUT_IMPL
 
-#include <assert.h>
 #include <stddef.h>
 #include <time.h>
 #include <errno.h>
@@ -746,18 +771,6 @@ void str_appendvf(String *s, const char *fmt, va_list args)
     char buffer[size+1];
     vsnprintf(buffer, (size_t)size+1, fmt, args);
     str_append_cstr(s, buffer);
-}
-
-// Insert an element at index n.
-void str_insert(String *s, char v, size_t n)
-{
-    assert(n <= s->len);
-    da_grow(s);
-    for (size_t i = s->len; i > n; i--)
-        da_at(s, i) = da_at(s, i-1);
-
-    da_at(s, n) = v;
-    s->len++;
 }
 
 // Find the index of a character.

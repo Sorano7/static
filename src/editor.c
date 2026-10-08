@@ -9,11 +9,11 @@ typedef struct Editor
     size_t row, col;
 } Editor;
 
-static void alloc_line(Editor *ed)
+static void new_line(Editor *ed, size_t at)
 {
     String *line = malloc(sizeof(String));
     str_init(line);
-    da_append(&ed->lines, line);
+    da_insert(&ed->lines, line, at);
 }
 
 Editor *ed_create(void)
@@ -22,7 +22,7 @@ Editor *ed_create(void)
     da_init(&ed->lines);
     ed->row = 0;
     ed->col = 0;
-    alloc_line(ed);
+    new_line(ed, 0);
     return ed;
 }
 
@@ -82,8 +82,7 @@ void ed_move(Editor *ed, Direction dir)
 void ed_insert_char(Editor *ed, char c)
 {
     String *line = current_line(ed);
-    TODO("insert at col instead of append");
-    str_append(line, (char)c);
+    str_insert_char(line, (char)c, ed->col);
     ed->col++;
 }
 
@@ -98,9 +97,7 @@ void ed_insert_str(Editor *ed, const char *str)
 
 void ed_newline(Editor *ed)
 {
-    TODO("insert line at row instead of append");
-    alloc_line(ed);
-    ed->row = ed->lines.len - 1;
+    new_line(ed, ed->col == 0 ? ed->row++ : ++ed->row);
     ed->col = 0;
 }
 
@@ -109,18 +106,14 @@ void ed_backspace(Editor *ed)
     String *line = current_line(ed);
     if (line->len > 0)
     {
-        TODO("delete at col instead of last");
-        line->len--;
-        str_append_null(line);
+        str_remove(line, ed->col-1);
         ed->col--;
     }
     else
     {
         str_free(line);
-        TODO("remove line at row instead of last");
-        ed->lines.len--;
-        ed->row--;
-        ed->col = current_line(ed)->len - 1;
+        da_remove(&ed->lines, ed->row--);
+        ed_clamp_col(ed);
     }
 }
 
