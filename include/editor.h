@@ -23,7 +23,10 @@ void ed_move(Editor *ed, Direction dir);
 
 void ed_insert_char(Editor *ed, char c);
 void ed_insert_str(Editor *ed, const char *str);
-void ed_newline(Editor *ed);
+
+void ed_linebreak(Editor *ed);
+void ed_newline(Editor *ed, bool below);
+void ed_remove_line(Editor *ed);
 
 void ed_backspace(Editor *ed);
 
