@@ -6,5 +6,6 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 ## [Unreleased]
 
 ### Added
-- Basic text editing and line manipulation
-- Soft wrapping and text-scramble effect
+- Basic text editing and line-based actions.
+- Toggleable text wrap.
+- Text-scramble effect that weakens the more active you are.
