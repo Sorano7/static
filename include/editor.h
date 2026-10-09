@@ -16,6 +16,7 @@ typedef struct
     Font font;
     Color bg;
     Color fg;
+    bool text_effect;
 } RenderOpt;
 
 void editor_init(Editor *ed, Buffer *buf);

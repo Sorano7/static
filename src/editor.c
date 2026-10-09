@@ -1,5 +1,6 @@
 #include "editor.h"
 #include <math.h>
+#include <ctype.h>
 
 constexpr float padding           = 50;
 constexpr float line_spacing      = 2;
@@ -138,52 +139,127 @@ static void process_line(String *out, StringView line, float ratio)
     {
         if ((size_t)rand_below((line.len-i)) < k)
         {
-            out->data[i] = rand_char(line.data[i]);
-            k--;
+            if (!isspace(line.data[i]))
+            {
+                out->data[i] = rand_char(line.data[i]);
+                k--;
+            }
         }
     }
+}
+
+typedef struct
+{
+    Vector2 pos;
+    float line_height;
+    size_t col;
+    size_t max_len;
+    RenderOpt *opt;
+} LineRenderCtx;
+
+typedef struct
+{
+    Vector2 last_line;
+    Vector2 next_line;
+    size_t col_offset;
+} LineRenderResult;
+
+static LineRenderResult render_line(Editor *ed, StringView line, LineRenderCtx *ctx)
+{
+    RenderOpt *opt = ctx->opt;
+    Vector2 pos = ctx->pos;
+
+    SV_TO_CSTR(line, line_buf);
+    DrawTextEx(opt->font, line_buf, pos, ed->font_size, 0, opt->fg);
+
+    size_t col = ctx->col;
+    if (line.len < col) col -= line.len;
+
+    return (LineRenderResult){
+        .last_line = pos,
+        .next_line = (Vector2){pos.x, pos.y + ctx->line_height},
+        .col_offset = col,
+    };
+}
+
+static LineRenderResult render_line_wrapped(Editor *ed, StringView line, LineRenderCtx *ctx)
+{
+    if (line.len <= ctx->max_len)
+        return render_line(ed, line, ctx);
+
+    StringView remaining = line;
+    float max_len = ctx->max_len;
+
+    while (remaining.len > max_len)
+    {
+        size_t split = max_len;
+        for (; split > 0; split--)
+            if (isspace(remaining.data[split])) break;
+
+        if (split < max_len) split++;
+        if (split == 0) split = max_len;
+
+        StringView next = sv_shift(&remaining, split);
+        LineRenderResult res = render_line(ed, next, ctx);
+        ctx->pos = res.next_line;
+        ctx->col = res.col_offset;
+    }
+
+    return render_line(ed, remaining, ctx);
 }
 
 void editor_render(Editor *ed, RenderOpt *opt)
 {
     Font font = opt->font;
 
-    Vector2 line_size = MeasureTextEx(font, "A", ed->font_size, 0);
-    float line_h = line_spacing + line_size.y;
+    Vector2 block = MeasureTextEx(font, "A", ed->font_size, 0);
+    float line_h = line_spacing + block.y;
 
     ClearBackground(opt->bg);
-
-    float rate_ratio = 1 - (ed->input_rate / max_input_rate);
 
     String sb;
     str_init(&sb);
 
+    float usable_w = GetScreenWidth() - (padding * 2);
+    size_t max_len = usable_w / block.x;
+
+    LineRenderCtx ctx = {
+        .line_height = line_h,
+        .max_len     = max_len,
+        .opt         = opt,
+        .pos         = {padding, padding},
+        .col         = 0,
+    };
+
     for (size_t i = 0; i < buf_line_count(ed->buf); i++)
     {
-        StringView line = buf_getline(ed->buf, i);
-        process_line(&sb, line, rate_ratio);
-
-        Vector2 pos = {padding, i * line_h + padding};
-        DrawTextEx(font, sb.data, pos, ed->font_size, 0, opt->fg);
-        str_reset(&sb);
-
         size_t row = buf_row(ed->buf);
         size_t col = buf_col(ed->buf);
+        ctx.col = col;
+
+        StringView line = buf_getline(ed->buf, i);
+        if (opt->text_effect)
+            process_line(&sb, line, 1 - (ed->input_rate / max_input_rate));
+        else
+            str_append(&sb, line);
+
+        LineRenderResult res = render_line_wrapped(ed, SV(sb), &ctx);
+        str_reset(&sb);
 
         if (i == row)
         {
             Rectangle cursor = {
-                .x      = padding + line_size.x * col,
-                .y      = row * line_h + padding,
-                .width  = line_size.x,
-                .height = line_size.y,
+                .x      = res.last_line.x + block.x * res.col_offset,
+                .y      = res.last_line.y,
+                .width  = 2,
+                .height = block.y,
             };
             DrawRectangleRec(cursor, opt->fg);
 
             if (col < line.len)
             {
                 SV_TO_CSTR(sv_slice(line, .from=col, .to=col+1), cursor_char);
-                pos.x += line_size.x * col;
+                Vector2 pos = {cursor.x, cursor.y};
                 DrawTextEx(font, cursor_char, pos, ed->font_size, 0, opt->bg);
             }
         }

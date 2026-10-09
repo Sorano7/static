@@ -7,22 +7,33 @@
     #define RAYLIB_DEPS "raylib", "GL", "m", "pthread", "dl", "rt", "X11"
 #endif
 
+void config(CutUnit *u)
+{
+    cut_unit_sources(u, "src/main.c");
+    cut_unit_sources(u,"src/editor.c", "src/buffer.c");
+
+    cut_unit_includes(u, "include");
+    cut_unit_defines(u, "_DEFAULT_SOURCE");
+    cut_unit_flags(u, "-std=c23", "-g", "-Wall", "-Wextra", "-Wno-override-init");
+
+    cut_unit_libs(u, RAYLIB_DEPS);
+}
+
 int main(int argc, char **argv)
 {
     cut_build_init();
 
-    CutUnit app;
-    cut_unit_init(&app, "app", CUT_UNIT_EXE);
-    cut_unit_out_name(&app, "static");
-    cut_unit_sources(&app, "src/main.c");
-    cut_unit_sources(&app,"src/editor.c", "src/buffer.c");
+    CutUnit dev;
+    cut_unit_init(&dev, "dev", CUT_UNIT_EXE);
+    cut_unit_out_name(&dev, "static_dev");
+    cut_unit_defines(&dev, "_DEV");
+    config(&dev);
 
-    cut_unit_includes(&app, "include");
-    cut_unit_defines(&app, "_DEFAULT_SOURCE")
-    cut_unit_flags(&app, "-std=c23", "-g", "-Wall", "-Wextra", "-Wno-override-init");
+    CutUnit release;
+    cut_unit_init(&release, "release", CUT_UNIT_EXE);
+    cut_unit_out_name(&release, "static");
+    config(&release);
 
-    cut_unit_libs(&app, RAYLIB_DEPS);
-
-    cut_build_add(&app);
+    cut_build_add(&dev, &release);
     return cut_build_run(argc, argv);
 }

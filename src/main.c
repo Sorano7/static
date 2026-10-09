@@ -19,20 +19,31 @@ int main(void)
     editor_init(&ed, nullptr);
 
     RenderOpt opt = {
-        .font = font,
-        .fg   = GetColor(0xd5dde3ff),
-        .bg   = GetColor(0x181e29ff),
+        .font        = font,
+        .fg          = GetColor(0xd5dde3ff),
+        .bg          = GetColor(0x181e29ff),
+        .text_effect = true,
     };
 
     while (!WindowShouldClose())
     {
+
+        bool ctrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+
         editor_update(&ed);
 
-        if (IsKeyPressed(KEY_ESCAPE))
+        if (ctrl) 
         {
-            Color prev_fg = opt.fg;
-            opt.fg = opt.bg;
-            opt.bg = prev_fg;
+            if (IsKeyPressed(KEY_L))
+            {
+                Color prev_fg = opt.fg;
+                opt.fg = opt.bg;
+                opt.bg = prev_fg;
+            }
+
+            #ifdef _DEV
+                if (IsKeyPressed(KEY_P)) opt.text_effect = !opt.text_effect;
+            #endif
         }
 
         BeginDrawing();
