@@ -9,7 +9,7 @@ constexpr int window_h = 600;
 
 int main(void)
 {
-    InitWindow(window_w, window_h, "Editor");
+    InitWindow(window_w, window_h, "static");
     SetExitKey(KEY_NULL);
 
     Font font = LoadFontEx("res/IosevkaWide-Regular.ttf", 64, NULL, 0);

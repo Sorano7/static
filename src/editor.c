@@ -136,7 +136,7 @@ static void process_line(String *out, StringView line, float ratio)
 
     for (size_t i = 0; i < line.len; i++)
     {
-        if (rand_below((line.len-i)) < k)
+        if ((size_t)rand_below((line.len-i)) < k)
         {
             out->data[i] = rand_char(line.data[i]);
             k--;
