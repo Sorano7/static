@@ -1,14 +1,6 @@
 #include "buffer.h"
 #include "cut.h"
 
-DA_DEFINE(LineList, String *);
-
-typedef struct Buffer
-{
-    LineList lines;
-    size_t row, col;
-} Buffer;
-
 static void alloc_newline(Buffer *buf, size_t at)
 {
     String *line = malloc(sizeof(String));
@@ -30,24 +22,15 @@ void buf_free(Buffer *buf)
     DA_FOREACH(&buf->lines, String *, line)
         str_free(*line);
     da_free(&buf->lines);
+    free(buf);
 }
 
-size_t buf_row(Buffer *buf)
-{
-    return buf->row;
-}
-
-size_t buf_col(Buffer *buf)
-{
-    return buf->col;
-}
-
-size_t buf_line_count(Buffer *buf)
+size_t buf_line_count(const Buffer *buf)
 {
     return buf->lines.len;
 }
 
-StringView buf_getline(Buffer *buf, size_t row)
+StringView buf_getline(const Buffer *buf, size_t row)
 {
     return SV(buf->lines.data[row]);
 }
@@ -69,7 +52,7 @@ static void clamp_row(Buffer *buf)
         buf->row = buf->lines.len - 1;
 }
 
-static void move_cursor(Buffer *buf, Direction dir)
+void buf_move_cursor(Buffer *buf, Direction dir)
 {
     switch (dir)
     {
@@ -97,23 +80,23 @@ static void move_cursor(Buffer *buf, Direction dir)
     }
 }
 
-static void insert_chr(Buffer *buf, char c)
+void buf_insert_chr(Buffer *buf, char c)
 {
     String *line = get_current_line(buf);
     str_insert_char(line, (char)c, buf->col);
     buf->col++;
 }
 
-static void insert_str(Buffer *buf, const char *str)
+void buf_insert_str(Buffer *buf, const char *str)
 {
     while (*str)
     {
-        insert_chr(buf, *str);
+        buf_insert_chr(buf, *str);
         str++;
     }
 }
 
-static void handle_split_line(Buffer *buf)
+void buf_split_line(Buffer *buf)
 {
     if (buf->col == 0)
     {
@@ -136,8 +119,10 @@ static void handle_split_line(Buffer *buf)
     buf->col = 0;
 }
 
-static void handle_insert_line(Buffer *buf, bool below)
+void buf_insert_line(Buffer *buf, Direction dir)
 {
+    DEV_MUST(dir == DIR_UP || dir == DIR_DOWN);
+    bool below = dir == DIR_DOWN;
     alloc_newline(buf, below ? ++buf->row : buf->row);
     buf->col = 0;
 }
@@ -148,7 +133,7 @@ static void free_current_line(Buffer *buf)
     da_remove(&buf->lines, buf->row);
 }
 
-static void handle_remove_line(Buffer *buf)
+void buf_remove_line(Buffer *buf)
 {
     if (buf->lines.len == 1)
     {
@@ -162,7 +147,7 @@ static void handle_remove_line(Buffer *buf)
     clamp_col(buf);
 }
 
-static void handle_delete(Buffer *buf)
+void buf_delete_chr(Buffer *buf)
 {
     String *line = get_current_line(buf);
     if (buf->col > 0)
@@ -182,21 +167,5 @@ static void handle_delete(Buffer *buf)
 
         free_current_line(buf);
         buf->row--;
-    }
-}
-
-void buf_handle_action(Buffer *buf, BufAction action)
-{
-    switch (action.kind)
-    {
-        case ACTION_INSERT_CHR:    insert_chr(buf, action.chr);    break;
-        case ACTION_INSERT_STR:    insert_str(buf, action.str);    break;
-        case ACTION_DELETE:        handle_delete(buf);             break;
-        case ACTION_REMOVE_LINE:   handle_remove_line(buf);        break;
-        case ACTION_NEWLINE_BELOW: handle_insert_line(buf, true);  break;
-        case ACTION_NEWLINE_ABOVE: handle_insert_line(buf, false); break;
-        case ACTION_SPLIT_LINE:    handle_split_line(buf);         break;
-        case ACTION_CURSOR_MOVE:   move_cursor(buf, action.dir);   break;
-        default:                   UNREACHABLE();
     }
 }
