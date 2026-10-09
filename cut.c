@@ -14,7 +14,7 @@ int main(int argc, char **argv)
     CutUnit app;
     cut_unit_init(&app, "app", CUT_UNIT_EXE);
     cut_unit_sources(&app, "src/main.c");
-    cut_unit_sources(&app, "src/editor.c");
+    cut_unit_sources(&app,"src/editor.c", "src/buffer.c");
 
     cut_unit_includes(&app, "include");
     cut_unit_defines(&app, "_DEFAULT_SOURCE")
