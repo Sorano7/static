@@ -151,11 +151,9 @@ void editor_render(Editor *ed, RenderOpt *opt)
     Vector2 line_size = MeasureTextEx(font, "A", ed->font_size, 0);
     float line_h = line_spacing + line_size.y;
 
-    ClearBackground(GetColor(0x181e29ff));
+    ClearBackground(opt->bg);
 
-    Color fg = RAYWHITE;
     float rate_ratio = 1 - (ed->input_rate / max_input_rate);
-    // fg.a = rate_ratio > 1.0f ? 0xff : 0xff * rate_ratio;
 
     String sb;
     str_init(&sb);
@@ -166,7 +164,7 @@ void editor_render(Editor *ed, RenderOpt *opt)
         process_line(&sb, line, rate_ratio);
 
         Vector2 pos = {padding, i * line_h + padding};
-        DrawTextEx(font, sb.data, pos, ed->font_size, 0, fg);
+        DrawTextEx(font, sb.data, pos, ed->font_size, 0, opt->fg);
         str_reset(&sb);
 
         size_t row = buf_row(ed->buf);
@@ -180,13 +178,13 @@ void editor_render(Editor *ed, RenderOpt *opt)
                 .width  = line_size.x,
                 .height = line_size.y,
             };
-            DrawRectangleRec(cursor, fg);
+            DrawRectangleRec(cursor, opt->fg);
 
             if (col < line.len)
             {
                 SV_TO_CSTR(sv_slice(line, .from=col, .to=col+1), cursor_char);
                 pos.x += line_size.x * col;
-                DrawTextEx(font, cursor_char, pos, ed->font_size, 0, BLACK);
+                DrawTextEx(font, cursor_char, pos, ed->font_size, 0, opt->bg);
             }
         }
     }

@@ -14,6 +14,8 @@ typedef struct Edtior
 typedef struct
 {
     Font font;
+    Color bg;
+    Color fg;
 } RenderOpt;
 
 void editor_init(Editor *ed, Buffer *buf);

@@ -9,6 +9,8 @@ constexpr int window_h = 600;
 
 int main(void)
 {
+    srand(time(NULL));
+
     InitWindow(window_w, window_h, "static");
     SetExitKey(KEY_NULL);
 
@@ -16,11 +18,22 @@ int main(void)
     Editor ed;
     editor_init(&ed, nullptr);
 
-    RenderOpt opt = {.font=font};
+    RenderOpt opt = {
+        .font = font,
+        .fg   = GetColor(0xd5dde3ff),
+        .bg   = GetColor(0x181e29ff),
+    };
 
     while (!WindowShouldClose())
     {
         editor_update(&ed);
+
+        if (IsKeyPressed(KEY_ESCAPE))
+        {
+            Color prev_fg = opt.fg;
+            opt.fg = opt.bg;
+            opt.bg = prev_fg;
+        }
 
         BeginDrawing();
 
