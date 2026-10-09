@@ -153,7 +153,7 @@ typedef struct
     Vector2 pos;
     float line_height;
     size_t col;
-    size_t max_len;
+    size_t max_cols;
     RenderOpt *opt;
 } LineRenderCtx;
 
@@ -184,11 +184,11 @@ static LineRenderResult render_line(Editor *ed, StringView line, LineRenderCtx *
 
 static LineRenderResult render_line_wrapped(Editor *ed, StringView line, LineRenderCtx *ctx)
 {
-    if (line.len <= ctx->max_len)
+    if (line.len <= ctx->max_cols)
         return render_line(ed, line, ctx);
 
     StringView remaining = line;
-    float max_len = ctx->max_len;
+    float max_len = ctx->max_cols;
 
     while (remaining.len > max_len)
     {
@@ -213,28 +213,34 @@ void editor_render(Editor *ed, RenderOpt *opt)
     Font font = opt->font;
 
     Vector2 block = MeasureTextEx(font, "A", ed->font_size, 0);
-    float line_h = line_spacing + block.y;
-
-    ClearBackground(opt->bg);
-
-    String sb;
-    str_init(&sb);
+    float line_height = line_spacing + block.y;
 
     float usable_w = GetScreenWidth() - (padding * 2);
-    size_t max_len = usable_w / block.x;
+    float usable_h = GetScreenHeight() - (padding * 2);
+    size_t max_cols = usable_w / block.x;
+    size_t max_rows = usable_h / block.y;
+
+    size_t row = buf_row(ed->buf);
+    size_t col = buf_col(ed->buf);
 
     LineRenderCtx ctx = {
-        .line_height = line_h,
-        .max_len     = max_len,
+        .line_height = line_height,
+        .max_cols    = max_cols,
         .opt         = opt,
         .pos         = {padding, padding},
         .col         = 0,
     };
 
+    if (row > max_rows)
+        ctx.pos.y -= (row - max_rows) * line_height;
+
+    String sb;
+    str_init(&sb);
+
+    ClearBackground(opt->bg);
+
     for (size_t i = 0; i < buf_line_count(ed->buf); i++)
     {
-        size_t row = buf_row(ed->buf);
-        size_t col = buf_col(ed->buf);
         ctx.col = col;
 
         StringView line = buf_getline(ed->buf, i);
