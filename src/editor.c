@@ -255,14 +255,9 @@ void editor_render(Editor *ed, RenderOpt *opt)
                 .height = block.y,
             };
             DrawRectangleRec(cursor, opt->fg);
-
-            if (col < line.len)
-            {
-                SV_TO_CSTR(sv_slice(line, .from=col, .to=col+1), cursor_char);
-                Vector2 pos = {cursor.x, cursor.y};
-                DrawTextEx(font, cursor_char, pos, ed->font_size, 0, opt->bg);
-            }
         }
+
+        ctx.pos = res.next_line;
     }
 
     str_free(&sb);
