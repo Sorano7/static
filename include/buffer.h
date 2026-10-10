@@ -2,6 +2,7 @@
 #define BUFFER_H
 
 #include <stdlib.h>
+#include <raylib.h>
 #include "cut.h"
 
 DA_DEFINE(LineList, String *);
@@ -17,6 +18,7 @@ void buf_free(Buffer *buf);
 
 size_t buf_line_count(const Buffer *buf);
 StringView buf_getline(const Buffer *buf, size_t row);
+Vector2 buf_all_lines(const Buffer *buf, SVList *out, size_t max_cols);
 
 typedef enum
 {

@@ -1,5 +1,6 @@
 #include "buffer.h"
 #include "cut.h"
+#include <ctype.h>
 
 static void alloc_newline(Buffer *buf, size_t at)
 {
@@ -33,6 +34,59 @@ size_t buf_line_count(const Buffer *buf)
 StringView buf_getline(const Buffer *buf, size_t row)
 {
     return SV(buf->lines.data[row]);
+}
+
+Vector2 buf_all_lines(const Buffer *buf, SVList *out, size_t max_cols)
+{
+    bool wrap = max_cols > 0;
+
+    size_t row = buf->row;
+    size_t col = buf->col;
+
+    size_t real_row = row;
+
+    DA_FOR(&buf->lines, i)
+    {
+        StringView line = buf_getline(buf, i);
+
+        while (wrap && line.len > max_cols)
+        {
+            size_t split = max_cols;
+            while (split > 0 && !isspace(line.data[split]))
+                split--;
+            if (split == 0 && !isspace(line.data[0]))
+                split = max_cols;
+
+            StringView next = sv_shift(&line, split);
+            if (isspace(next.data[0]))
+            {
+                sv_shift(&next, 1);
+                col--;
+            }
+
+            da_append(out, next);
+
+            if (i == real_row && col > next.len)
+            {
+                if (col > next.len)
+                {
+                    col -= next.len;
+                    row++;
+                }
+            }
+            else
+            {
+                row++;
+            }
+        }
+        if (isspace(line.data[0]))
+        {
+            sv_shift(&line, 1);
+            col--;
+        }
+        da_append(out, line);
+    }
+    return (Vector2){col, row};
 }
 
 static String *get_current_line(Buffer *buf)

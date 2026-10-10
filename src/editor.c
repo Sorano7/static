@@ -184,59 +184,6 @@ static void process_line(String *out, StringView line, float ratio)
     }
 }
 
-static Buffer *wrap_lines(Editor *ed, size_t max_cols)
-{
-    const Buffer *buf = ed->buf;
-    Buffer *out = buf_create();
-
-    size_t prev_row = buf->row;
-    size_t cursor_row = prev_row;
-    size_t cursor_col = buf->col;
-
-    for (size_t i = 0; i < buf_line_count(buf); i++)
-    {
-        StringView line = buf_getline(buf, i);
-
-        while (line.len > max_cols)
-        {
-            size_t split = max_cols;
-            for (; split > 0; split--)
-                if (isspace(line.data[split])) break;
-            if (split < max_cols) split++;
-            if (split == 0) split = max_cols;
-
-            StringView next = sv_shift(&line, split);
-            SV_TO_CSTR(next, s);
-            buf_insert_str(out, s);
-            buf_insert_line(out, DIR_DOWN);
-
-            if (prev_row == i)
-            {
-                if (cursor_col > next.len) 
-                {
-                    cursor_row++;
-                    cursor_col -= next.len;
-                }
-            }
-            else
-            {
-                cursor_row++;
-            }
-        }
-
-        SV_TO_CSTR(line, s);
-        buf_insert_str(out, s);
-
-        if (i < buf_line_count(buf)-1)
-            buf_insert_line(out, DIR_DOWN);
-    }
-
-    out->row = cursor_row;
-    out->col = cursor_col;
-
-    return out;
-}
-
 void editor_render(Editor *ed)
 {
     RenderOpt opt = ed->opt;
@@ -251,22 +198,14 @@ void editor_render(Editor *ed)
     size_t max_cols = usable_w / block.x;
     size_t max_rows = usable_h / block.y;
 
-    String sb;
-    str_init(&sb);
+    SVList lines;
+    da_init(&lines);
 
-    Buffer *buf = ed->buf;
-    bool need_free = false;
-
-    if (opt.text_wrap)
-    {
-        buf = wrap_lines(ed, max_cols);
-        need_free = true;
-    }
-
-    size_t row = buf->row;
-    size_t col = buf->col;
+    Vector2 cursor = buf_all_lines(ed->buf, &lines, opt.text_wrap ? max_cols : 0);
+    size_t row = cursor.y, col = cursor.x;
 
     Vector2 pos = {padding, padding};
+
     if (row > max_rows)
         pos.y -= (row - max_rows) * line_height;
     if (col > max_cols)
@@ -274,16 +213,18 @@ void editor_render(Editor *ed)
 
     ClearBackground(opt.bg);
 
-    for (size_t i = 0; i < buf_line_count(buf); i++)
+    String sb;
+    str_init(&sb);
+
+    DA_FOR(&lines, i)
     {
-        StringView line = buf_getline(buf, i);
+        StringView line = lines.data[i];
         if (opt.text_effect)
-            process_line(&sb, line, 1 - (ed->input_rate / max_input_rate));
+            process_line(&sb, line, 1-(ed->input_rate / max_input_rate));
         else
             str_append(&sb, line);
 
         DrawTextEx(opt.font, sb.data, pos, opt.font_size, 0, opt.fg);
-
         str_reset(&sb);
 
         if (i == row)
@@ -301,5 +242,5 @@ void editor_render(Editor *ed)
     }
 
     str_free(&sb);
-    if (need_free) buf_free(buf);
+    da_free(&lines);
 }
