@@ -36,56 +36,57 @@ StringView buf_getline(const Buffer *buf, size_t row)
     return SV(buf->lines.data[row]);
 }
 
+static size_t wrap_line(StringView line, SVList *out, size_t *col, size_t max_cols)
+{
+    size_t count = 0;
+
+    while (max_cols > 0 && line.len > max_cols)
+    {
+        size_t split = max_cols + 1;
+        while (split > 0 && !isspace(line.data[split - 1]))
+            split--;
+        if (split == 0 && !isspace(line.data[0]))
+            split = max_cols;
+
+        StringView next = sv_shift(&line, split);
+
+        da_append(out, next);
+        if (!col)
+        {
+            count++;
+            continue;
+        }
+
+        if (*col > next.len)
+        {
+            *col -= next.len;
+            count++;
+        }
+    }
+
+    da_append(out, line);
+    return ++count;
+}
+
 Vector2 buf_all_lines(const Buffer *buf, SVList *out, size_t max_cols)
 {
-    bool wrap = max_cols > 0;
-
     size_t row = buf->row;
     size_t col = buf->col;
 
     size_t real_row = row;
 
-    DA_FOR(&buf->lines, i)
+    for (size_t i = 0; i < real_row; i++)
     {
-        StringView line = buf_getline(buf, i);
-
-        while (wrap && line.len > max_cols)
-        {
-            size_t split = max_cols;
-            while (split > 0 && !isspace(line.data[split]))
-                split--;
-            if (split == 0 && !isspace(line.data[0]))
-                split = max_cols;
-
-            StringView next = sv_shift(&line, split);
-            if (isspace(next.data[0]))
-            {
-                sv_shift(&next, 1);
-                col--;
-            }
-
-            da_append(out, next);
-
-            if (i == real_row && col > next.len)
-            {
-                if (col > next.len)
-                {
-                    col -= next.len;
-                    row++;
-                }
-            }
-            else
-            {
-                row++;
-            }
-        }
-        if (isspace(line.data[0]))
-        {
-            sv_shift(&line, 1);
-            col--;
-        }
-        da_append(out, line);
+        size_t row_count = wrap_line(buf_getline(buf, i), out, nullptr, max_cols);
+        row += row_count - 1;
     }
+
+    size_t row_count = wrap_line(buf_getline(buf, real_row), out, &col, max_cols);
+    if (row_count > 0) row += row_count - 1;
+
+    for (size_t i = real_row+1; i < buf->lines.len; i++)
+        wrap_line(buf_getline(buf, i), out, nullptr, max_cols);
+
     return (Vector2){col, row};
 }
 

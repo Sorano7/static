@@ -18,6 +18,9 @@ void editor_default_opt(Editor *ed)
         .text_effect = true,
         .text_wrap   = true,
     };
+    #ifdef _DEV
+        ed->opt.text_effect = false;
+    #endif
 }
 
 void editor_init(Editor *ed, Buffer *buf)
