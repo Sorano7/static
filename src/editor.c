@@ -16,11 +16,8 @@ void editor_default_opt(Editor *ed)
         .fg          = GetColor(0xd5dde3ff),
         .bg          = GetColor(0x181e29ff),
         .text_effect = true,
-        .text_wrap   = true,
+        .text_wrap   = false,
     };
-    #ifdef _DEV
-        ed->opt.text_effect = false;
-    #endif
 }
 
 void editor_init(Editor *ed, Buffer *buf)
@@ -150,7 +147,7 @@ void editor_update(Editor *ed)
         }
     }
 
-    ed->input_rate *= expf(-GetFrameTime() * 2.0f);
+    ed->input_rate *= expf(-GetFrameTime() * 1.0f);
     if (ed->input_rate < 0.5) ed->input_rate = 0;
 }
 
