@@ -24,9 +24,14 @@ void editor_default_opt(Editor *ed)
 void editor_init(Editor *ed, Buffer *buf)
 {
     memset(ed, 0, sizeof(*ed));
+
     if (!buf) buf = buf_create();
     ed->buf = buf;
+    ed->prompt.buf = buf_create();
+    ed->prompt.cb = nullptr;
+
     ed->input_rate = 0;
+    ed->mode = MODE_EDIT;
 
     editor_default_opt(ed);
     str_init(&ed->msg);
@@ -58,10 +63,16 @@ static void set_msg(Editor *ed, const char *fmt, ...)
 
 #define key_pressed_or_held(key) (IsKeyPressed(key) || IsKeyPressedRepeat(key))
 
-// Handle user input and hotkeys.
-static void handle_input(Editor *ed)
+#define ctrl (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL))
+#define shift (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT))
+
+// Handles buffer input for either main buffer or prompt buffer.
+static void handle_buffer_input(Editor *ed)
 {
-    Buffer *buf = ed->buf;
+    bool edit = ed->mode == MODE_EDIT;
+    bool prompt = ed->mode == MODE_PROMPT;
+
+    Buffer *buf = prompt ? ed->prompt.buf : ed->buf;
 
     int key = GetCharPressed();
     while (key > 0)
@@ -71,12 +82,9 @@ static void handle_input(Editor *ed)
         key = GetCharPressed();
     }
 
-    bool ctrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
-    bool shift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
-
     if (key_pressed_or_held(KEY_BACKSPACE))
     {
-        if (shift)
+        if (edit && shift)
             buf_remove_line(buf);
         else
             buf_delete_chr(buf);
@@ -84,15 +92,28 @@ static void handle_input(Editor *ed)
 
     if (key_pressed_or_held(KEY_ENTER))
     {
-        if (shift)
-            buf_insert_line(buf, DIR_UP);
-        else if (ctrl)
-            buf_insert_line(buf, DIR_DOWN);
+        if (prompt)
+        {
+            if (ed->prompt.cb)
+            {
+                StringView input = buf_getline(ed->prompt.buf, 0);
+                ed->prompt.cb(ed, input, ed->prompt.ud);
+                str_reset(&ed->msg);
+            }
+            ed->mode = MODE_EDIT;
+        }
         else
-            buf_split_line(buf);
+        {
+            if (shift)
+                buf_insert_line(buf, DIR_UP);
+            else if (ctrl)
+                buf_insert_line(buf, DIR_DOWN);
+            else
+                buf_split_line(buf);
+        }
     }
 
-    if (IsKeyPressed(KEY_TAB)) buf_insert_str(buf, "    ");
+    if (edit && IsKeyPressed(KEY_TAB)) buf_insert_str(buf, "    ");
 
     bool left  = key_pressed_or_held(KEY_LEFT)  || (ctrl && key_pressed_or_held(KEY_H));
     bool down  = key_pressed_or_held(KEY_DOWN)  || (ctrl && key_pressed_or_held(KEY_J));
@@ -100,11 +121,49 @@ static void handle_input(Editor *ed)
     bool right = key_pressed_or_held(KEY_RIGHT) || (ctrl && key_pressed_or_held(KEY_L));
 
     if (left)  buf_move_cursor(buf, DIR_LEFT);
-    if (down)  buf_move_cursor(buf, DIR_DOWN);
-    if (up)    buf_move_cursor(buf, DIR_UP);
     if (right) buf_move_cursor(buf, DIR_RIGHT);
 
-    // interface actions
+    if (edit)
+    {
+        if (down)  buf_move_cursor(buf, DIR_DOWN);
+        if (up)    buf_move_cursor(buf, DIR_UP);
+    }
+}
+
+// Set a prompt for input.
+static void set_prompt(Editor *ed, StringView prompt, PromptCallBack cb, void *ud)
+{
+    ed->mode = MODE_PROMPT;
+    buf_clear(ed->prompt.buf);
+    ed->prompt.cb = cb;
+    ed->prompt.ud = ud;
+
+    str_reset(&ed->msg);
+    str_append(&ed->msg, prompt);
+}
+
+static void on_save(Editor *ed, StringView path, void *ud)
+{
+    (void)ud;
+    if (path.len == 0) return;
+
+    bool ok = save_to_file(ed->buf, path);
+    set_msg(ed, "%s: "SV_FMT, ok ? "Saved" : "Failed to save", SV_ARG(path));
+}
+
+static void on_load(Editor *ed, StringView path, void *ud)
+{
+    (void)ud;
+    if (path.len == 0) return;
+
+    buf_clear(ed->buf);
+    bool ok = load_from_file(ed->buf, path);
+    set_msg(ed, "%s: "SV_FMT, ok ? "Loaded" : "Failed to load", SV_ARG(path));
+}
+
+// Handle interface hotkeys.
+static void handle_hotkey(Editor *ed)
+{
     if (ctrl)
     {
         // Invert colors
@@ -138,17 +197,13 @@ static void handle_input(Editor *ed)
             set_msg(ed, "Font size: %.0f", ed->opt.font_size);
         }
 
-        // Load/Save
         if (IsKeyPressed(KEY_O))
         {
-            buf_clear(buf);
-            load_from_file(buf, SV("_test.c"));
-            set_msg(ed, "Loaded file: _text.c");
+            set_prompt(ed, SV("Load: "), on_load, nullptr);
         }
         if (IsKeyPressed(KEY_S))
         {
-            save_to_file(buf, SV("_test.c"));
-            set_msg(ed, "Saved file: _text.c");
+            set_prompt(ed, SV("Save: "), on_save, nullptr);
         }
     }
 }
@@ -161,10 +216,8 @@ static void increase_input_rate(Editor *ed, float d)
         ed->input_rate = max_input_rate;
 }
 
-void editor_update(Editor *ed)
+static void update_input_rate(Editor *ed)
 {
-    handle_input(ed);
-
     // Adjust input rate
     int key;
     while ((key = GetKeyPressed()) > 0)
@@ -194,6 +247,13 @@ void editor_update(Editor *ed)
     // Decay input rate
     ed->input_rate *= expf(-GetFrameTime() * 1.0f);
     if (ed->input_rate < 0.5) ed->input_rate = 0;
+}
+
+void editor_update(Editor *ed)
+{
+    handle_buffer_input(ed);
+    handle_hotkey(ed);
+    update_input_rate(ed);
 }
 
 // Random int below n.
@@ -232,9 +292,10 @@ static void process_line(String *out, StringView line, float ratio)
     }
 }
 
-// Render the message in the status area.
-static void render_msg(Editor *ed)
+// Render the status area.
+static void render_status_area(Editor *ed)
 {
+    // Status area box
     Rectangle box = {
         .x      = 0,
         .y      = GetScreenHeight() - padding,
@@ -244,15 +305,38 @@ static void render_msg(Editor *ed)
     DrawRectangleRec(box, ed->opt.fg);
 
     float font_size = ed->opt.font_size * 0.8;
-    float height = MeasureTextEx(ed->opt.font, "A", font_size, 0).y;
+    Vector2 block = MeasureTextEx(ed->opt.font, "A", font_size, 0);
     Vector2 pos = {
         .x = padding / 2,
-        .y = GetScreenHeight() - (padding/2) - (height/2),
+        .y = GetScreenHeight() - (padding/2) - (block.y/2),
     };
-    DrawTextEx(ed->opt.font, ed->msg.data, pos, font_size, 0, ed->opt.bg);
+
+    if (ed->mode == MODE_EDIT)
+    {
+        DrawTextEx(ed->opt.font, ed->msg.data, pos, font_size, 0, ed->opt.bg);
+    }
+    else if (ed->mode == MODE_PROMPT)
+    {
+        String sb;
+        str_init_with(&sb, SV(ed->msg));
+
+        StringView prompt = buf_getline(ed->prompt.buf, 0);
+        str_append(&sb, prompt);
+
+        DrawTextEx(ed->opt.font, sb.data, pos, font_size, 0, ed->opt.bg);
+
+        Rectangle cursor = {
+            .x      = pos.x + block.x * (ed->prompt.buf->col + ed->msg.len),
+            .y      = pos.y,
+            .width  = 2,
+            .height = block.y,
+        };
+        DrawRectangleRec(cursor, ed->opt.bg);
+    }
 }
 
-void editor_render(Editor *ed)
+// Render the main buffer.
+static void render_buffer(Editor *ed)
 {
     RenderOpt opt = ed->opt;
 
@@ -311,6 +395,10 @@ void editor_render(Editor *ed)
 
     str_free(&sb);
     da_free(&lines);
+}
 
-    render_msg(ed);
+void editor_render(Editor *ed)
+{
+    render_buffer(ed);
+    render_status_area(ed);
 }

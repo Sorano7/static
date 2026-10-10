@@ -14,11 +14,33 @@ typedef struct
     bool text_wrap;
 } RenderOpt;
 
+typedef enum
+{
+    MODE_EDIT,
+    MODE_PROMPT,
+} EditorMode;
+
+typedef struct Editor Editor;
+
+typedef void (*PromptCallBack)(Editor *, StringView, void *);
+
 typedef struct
 {
     Buffer *buf;
-    float input_rate;
+    PromptCallBack cb;
+    void *ud;
+} Prompt;
+
+typedef struct Editor
+{
+    Buffer *buf;
+    Prompt prompt;
+
     RenderOpt opt;
+
+    float input_rate;
+    EditorMode mode;
+
     String msg;
 } Editor;
 
