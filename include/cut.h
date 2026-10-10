@@ -1,6 +1,11 @@
 #ifndef CUT_H
 #define CUT_H
 
+#ifdef CUT_UTILS_ONLY
+    #define CUT_NO_BUILD
+    #define CUT_NO_FLAGS
+#endif
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -281,6 +286,8 @@ bool svlist_contains(SVList *sl, StringView v);
  * Logging
  ************************************************/
 
+#ifndef CUT_NO_TESTING
+
 #define AFMT_RESET     "\e[0m"
 #define AFMT_BOLD      "\e[1m"
 #define AFMT_DIM       "\e[2m"
@@ -458,10 +465,13 @@ void cut_test_run_opt(TestRunOpt opt);
 } while (0)
 #endif // CUT_NO_DEV
 
+#endif // CUT_NO_TESTING
 
 /************************************************
  * Build
  ************************************************/
+
+#ifndef CUT_NO_BUILD
 
 // The kinds of a unit.
 typedef enum
@@ -547,10 +557,13 @@ void _cut_build_add(CutUnit *first, ...);
 // Run build.
 int cut_build_run(int argc, char **argv);
 
+#endif // CUT_NO_BUILD
 
 /************************************************
  * CLI Flag Parsing
  ************************************************/
+
+#ifndef CUT_NO_FLAGS
 
 typedef enum
 {
@@ -626,6 +639,7 @@ typedef struct
 
 CutFPResult cut_fp_parse(CutFlagParser *fp, int argc, char **argv, SVList *out);
 
+#endif // CUT_NO_FLAGS
 
 #endif // CUT_H
 
@@ -645,6 +659,7 @@ CutFPResult cut_fp_parse(CutFlagParser *fp, int argc, char **argv, SVList *out);
 
 #ifdef _WIN32
     #include <io.h>
+    #include <ctype.h>
     #include <windows.h>
     #include <direct.h>
 
@@ -665,20 +680,24 @@ CutFPResult cut_fp_parse(CutFlagParser *fp, int argc, char **argv, SVList *out);
  * Globals
  ************************************************/
 
-// Global linked list of test cases.
-static CutTestCase *cut_test_registry_head = NULL;
+#ifndef CUT_NO_TESTING
+    // Global linked list of test cases.
+    static CutTestCase *cut_test_registry_head = NULL;
 
-// Count of registered tests.
-static size_t cut_test_registry_size = 0;
+    // Count of registered tests.
+    static size_t cut_test_registry_size = 0;
 
-// Length of the longest test name
-static size_t cut_test_name_max = 0;
+    // Length of the longest test name
+    static size_t cut_test_name_max = 0;
 
-// Global test context.
-static CutLogList cut_dev_logs = {0};
+    // Global test context.
+    static CutLogList cut_dev_logs = {0};
+#endif
 
-// Global builder.
-static CutBuilder cut_builder = {0};
+#ifndef CUT_NO_BUILD
+    // Global builder.
+    static CutBuilder cut_builder = {0};
+#endif
 
 
 /************************************************
@@ -1006,6 +1025,8 @@ static void command_format(SVList *sl, String *sb, StringView prefix)
  * Platform Utils
  ************************************************/
 
+#ifndef CUT_NO_BUILD
+
 #ifdef _WIN32
     #define PATH_SEP "\\"
     #define PATH_SEP_C '\\'
@@ -1118,10 +1139,14 @@ static void remove_path(StringView path)
     str_free(&cmd);
 }
 
+#endif // CUT_NO_BUILD
+
 
 /************************************************
  * Logging
  ************************************************/
+
+#ifndef CUT_NO_TESTING
 
 static void log_free(CutLog *log)
 {
@@ -1352,10 +1377,14 @@ void cut_test_run_opt(TestRunOpt opt)
             test_ran, test_ran-test_failed, test_failed);
 }
 
+#endif // CUT_NO_TESTING
+
 
 /************************************************
  * Build
  ************************************************/
+
+#ifndef CUT_NO_BUILD
 
 // Initializes a unit.
 void cut_unit_init(CutUnit *unit, const char *name, CutUnitKind kind)
@@ -1794,10 +1823,14 @@ done:
     return ok ? 0 : 1;
 }
 
+#endif // CUT_NO_BUILD
+
 
 /************************************************
  * CLI Flag Parsing
  ************************************************/
+
+#if !defined(CUT_NO_BUILD) || !defined(CUT_NO_FLAGS)
 
 // Initialize a flag parser.
 void cut_fp_init(CutFlagParser *fp)
@@ -2105,5 +2138,7 @@ positional:
 
     return fp_ok();
 }
+
+#endif // !CUT_NO_BUILD || !CUT_NO_FLAGS
 
 #endif // CUT_IMPL
