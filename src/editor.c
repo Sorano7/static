@@ -311,7 +311,6 @@ static void process_line(String *out, StringView line, float ratio)
 
 void editor_render(Editor *ed)
 {
-
     RenderOpt *opt = ed->opt;
     Font font = opt->font;
 
@@ -328,33 +327,30 @@ void editor_render(Editor *ed)
     size_t max_cols = usable_w / col_w;
     size_t max_rows = (usable_h - status_h) / row_h;
 
-    // Main buffer rendering
-    SVList lines;
-    da_init(&lines);
-
-    Vector2 cursor = buf_all_lines(ed->buf, &lines, opt->text_wrap ? max_cols : 0);
-    size_t row = cursor.y, col = cursor.x;
-
+    // Wrapped view of the buffer.
+    BufferView *view = buf_view(ed->buf, opt->text_wrap ? max_cols : 0);
     Vector2 pos = {padding, padding};
 
-    if (row > max_rows)
-        pos.y -= (row - max_rows) * row_h;
-    if (col >= max_cols)
-        pos.x -= (col - max_cols) * col_w;
+    // Adjust screen offset if cursor outside screen.
+    if (view->row > max_rows)
+        pos.y -= (view->row - max_rows) * row_h;
+    if (view->col >= max_cols)
+        pos.x -= (view->col - max_cols) * col_w;
 
     String sb;
     str_init(&sb);
 
-    DA_FOR(&lines, i)
+    // Main buffer rendering
+    DA_FOR(&view->lines, i)
     {
-        StringView line = lines.data[i];
+        StringView line = view->lines.data[i];
 
-        if (i == row)
+        if (i == view->row)
         {
             DrawRectangle(pos.x, pos.y, usable_w, row_h, opt->mantle);
         }
 
-        if (opt->text_effect && i != row)
+        if (opt->text_effect && i != view->row)
             process_line(&sb, line, 1-(ed->input_rate / max_input_rate));
         else
             str_append(&sb, line);
@@ -362,10 +358,10 @@ void editor_render(Editor *ed)
         DrawTextEx(opt->font, sb.data, pos, opt->font_size, 0, opt->text);
         str_reset(&sb);
 
-        if (i == row)
+        if (i == view->row)
         {
             Rectangle cursor = {
-                .x      = pos.x + col_w * col,
+                .x      = pos.x + col_w * view->col,
                 .y      = pos.y,
                 .width  = 2,
                 .height = block.y,
@@ -375,9 +371,6 @@ void editor_render(Editor *ed)
 
         pos.y += row_h;
     }
-
-    str_free(&sb);
-    da_free(&lines);
 
     // Status area
     Rectangle box = {
@@ -415,4 +408,7 @@ void editor_render(Editor *ed)
         };
         DrawRectangleRec(cursor, opt->text);
     }
+
+    str_free(&sb);
+    buf_view_free(view);
 }

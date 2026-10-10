@@ -83,7 +83,7 @@ static size_t wrap_line(StringView line, SVList *out, size_t *col, size_t max_co
     return ++count;
 }
 
-Vector2 buf_all_lines(const Buffer *buf, SVList *out, size_t max_cols)
+static void buf_all_lines(const Buffer *buf, SVList *out, size_t *out_row, size_t *out_col, size_t max_cols)
 {
     size_t row = buf->row;
     size_t col = buf->col;
@@ -102,7 +102,23 @@ Vector2 buf_all_lines(const Buffer *buf, SVList *out, size_t max_cols)
     for (size_t i = real_row+1; i < buf->lines.len; i++)
         wrap_line(buf_getline(buf, i), out, nullptr, max_cols);
 
-    return (Vector2){col, row};
+    *out_row = row;
+    *out_col = col;
+}
+
+BufferView *buf_view(const Buffer *buf, size_t max_cols)
+{
+    BufferView *view = calloc(1, sizeof(BufferView));
+    da_init(&view->lines);
+    buf_all_lines(buf, &view->lines, &view->row, &view->col, max_cols);
+    return view;
+}
+
+void buf_view_free(BufferView *view)
+{
+    if (!view) return;
+    da_free(&view->lines);
+    free(view);
 }
 
 static String *get_current_line(Buffer *buf)

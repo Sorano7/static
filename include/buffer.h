@@ -2,17 +2,22 @@
 #define BUFFER_H
 
 #include <stdlib.h>
-#include <raylib.h>
 #include "cut.h"
 
 DA_DEFINE(LineList, String *);
 
-typedef struct Buffer
+typedef struct
 {
     LineList lines;
     size_t target_col;
     size_t row, col;
 } Buffer;
+
+typedef struct
+{
+    SVList lines;
+    size_t row, col;
+} BufferView;
 
 // Allocate a new buffer.
 Buffer *buf_create(void);
@@ -29,10 +34,11 @@ size_t buf_line_count(const Buffer *buf);
 // Get the line at row.
 StringView buf_getline(const Buffer *buf, size_t row);
 
-// Get a list of all lines wrapped at max_cols.
-// No wrapping if max_cols is 0.
-// Returns the adjusted cursor position {col, row}.
-Vector2 buf_all_lines(const Buffer *buf, SVList *out, size_t max_cols);
+// Create a view of the buffer with optional wrapping.
+BufferView *buf_view(const Buffer *buf, size_t max_cols);
+
+// Free a buffer view.
+void buf_view_free(BufferView *view);
 
 typedef enum
 {
