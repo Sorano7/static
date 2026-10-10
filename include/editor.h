@@ -8,11 +8,18 @@ typedef struct
 {
     Font font;
     float font_size;
+
     Color bg;
-    Color fg;
+    Color mantle;
+
+    Color text;
+    Color overlay;
+
     bool text_effect;
     bool text_wrap;
 } RenderOpt;
+
+void default_render_opt(RenderOpt *opt);
 
 typedef enum
 {
@@ -36,7 +43,7 @@ typedef struct Editor
     Buffer *buf;
     Prompt prompt;
 
-    RenderOpt opt;
+    RenderOpt *opt;
 
     float input_rate;
     EditorMode mode;
@@ -50,11 +57,8 @@ void editor_init(Editor *ed, Buffer *buf);
 // Free the editor.
 void editor_free(Editor *ed);
 
-// Set default options for the editor.
-void editor_default_opt(Editor *ed);
-
 // Set options for the editor.
-void editor_set_opt(Editor *ed, const RenderOpt *opt);
+void editor_set_opt(Editor *ed, RenderOpt *opt);
 
 // Update the editor.
 void editor_update(Editor *ed);

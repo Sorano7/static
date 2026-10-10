@@ -17,6 +17,11 @@ int main(void)
     Editor ed;
     editor_init(&ed, nullptr);
 
+    RenderOpt opt;
+    default_render_opt(&opt);
+
+    editor_set_opt(&ed, &opt);
+
     while (!WindowShouldClose())
     {
         editor_update(&ed);

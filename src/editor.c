@@ -3,19 +3,24 @@
 #include <ctype.h>
 #include "platform.h"
 
-constexpr float padding           = 50; // Padding of the main buffer area
+constexpr float padding           = 10;
 constexpr float line_spacing      = 2;
-constexpr float font_size_step    = 2;
+constexpr float font_size_step    = 1;
 constexpr float default_font_size = 28;
 constexpr float max_input_rate    = 100;
 
-void editor_default_opt(Editor *ed)
+void default_render_opt(RenderOpt *opt)
 {
-    ed->opt = (RenderOpt){
+    *opt = (RenderOpt){
         .font        = LoadFontEx("res/IosevkaWide-Regular.ttf", 64, NULL, 0),
         .font_size   = default_font_size,
-        .fg          = GetColor(0xd5dde3ff),
-        .bg          = GetColor(0x181e29ff),
+
+        .bg          = GetColor(0x272e45ff),
+        .mantle      = GetColor(0x21273bff),
+
+        .text        = GetColor(0xe6e8f2ff),
+        .overlay     = GetColor(0xc7cad6ff),
+
         .text_effect = true,
         .text_wrap   = false,
     };
@@ -33,7 +38,6 @@ void editor_init(Editor *ed, Buffer *buf)
     ed->input_rate = 0;
     ed->mode = MODE_EDIT;
 
-    editor_default_opt(ed);
     str_init(&ed->msg);
 }
 
@@ -44,9 +48,9 @@ void editor_free(Editor *ed)
     str_free(&ed->msg);
 }
 
-void editor_set_opt(Editor *ed, const RenderOpt *opt)
+void editor_set_opt(Editor *ed, RenderOpt *opt)
 {
-    ed->opt = *opt;
+    ed->opt = opt;
 }
 
 // Clear the previous message and set a new message.
@@ -164,27 +168,34 @@ static void on_load(Editor *ed, StringView path, void *ud)
 // Handle interface hotkeys.
 static void handle_hotkey(Editor *ed)
 {
+    RenderOpt *opt = ed->opt;
+
     if (ctrl)
     {
         // Invert colors
         if (IsKeyPressed(KEY_D))
         {
-            Color prev_fg = ed->opt.fg;
-            ed->opt.fg = ed->opt.bg;
-            ed->opt.bg = prev_fg;
+            Color bg = opt->bg;
+            Color mantle = opt->mantle;
+
+            opt->bg = opt->text;
+            opt->mantle = opt->overlay;
+
+            opt->text = mantle;
+            opt->overlay = bg;
         }
 
         // Set text wrap
         if (IsKeyPressed(KEY_W))
         {
-            ed->opt.text_wrap = !ed->opt.text_wrap;
-            set_msg(ed, "Text wrap: %s", ed->opt.text_wrap ? "on" : "off");
+            opt->text_wrap = !opt->text_wrap;
+            set_msg(ed, "Text wrap: %s", opt->text_wrap ? "on" : "off");
         }
 
         // Toggle text effect (dev only)
         #ifdef _DEV
             if (IsKeyPressed(KEY_P))
-                ed->opt.text_effect = !ed->opt.text_effect;
+                opt->text_effect = !opt->text_effect;
         #endif
 
         // Font size
@@ -193,8 +204,8 @@ static void handle_hotkey(Editor *ed)
 
         if (equal || minus)
         {
-            ed->opt.font_size += equal ? font_size_step : -font_size_step;
-            set_msg(ed, "Font size: %.0f", ed->opt.font_size);
+            opt->font_size += equal ? font_size_step : -font_size_step;
+            set_msg(ed, "Font size: %.0f", opt->font_size);
         }
 
         if (IsKeyPressed(KEY_O))
@@ -292,28 +303,87 @@ static void process_line(String *out, StringView line, float ratio)
     }
 }
 
-// Render the status area.
-static void render_status_area(Editor *ed)
+void editor_render(Editor *ed)
 {
-    // Status area box
+
+    RenderOpt *opt = ed->opt;
+    Font font = opt->font;
+
+    // Screen dimensions
+    ClearBackground(opt->bg);
+
+    Vector2 block = MeasureTextEx(font, "A", opt->font_size, 0);
+    float row_h = line_spacing + block.y;
+    float col_w = block.x;
+
+    float status_h = 3 * row_h;
+    float usable_w = GetScreenWidth() - (padding * 2);
+    float usable_h = GetScreenHeight() - (padding * 2);
+    size_t max_cols = usable_w / col_w;
+    size_t max_rows = (usable_h - status_h) / row_h;
+
+    // Main buffer rendering
+    SVList lines;
+    da_init(&lines);
+
+    Vector2 cursor = buf_all_lines(ed->buf, &lines, opt->text_wrap ? max_cols : 0);
+    size_t row = cursor.y, col = cursor.x;
+
+    Vector2 pos = {padding, padding};
+
+    if (row > max_rows)
+        pos.y -= (row - max_rows) * row_h;
+    if (col >= max_cols)
+        pos.x -= (col - max_cols) * col_w;
+
+    String sb;
+    str_init(&sb);
+
+    DA_FOR(&lines, i)
+    {
+        StringView line = lines.data[i];
+        if (opt->text_effect)
+            process_line(&sb, line, 1-(ed->input_rate / max_input_rate));
+        else
+            str_append(&sb, line);
+
+        DrawTextEx(opt->font, sb.data, pos, opt->font_size, 0, opt->text);
+        str_reset(&sb);
+
+        if (i == row)
+        {
+            Rectangle cursor = {
+                .x      = pos.x + col_w * col,
+                .y      = pos.y,
+                .width  = 2,
+                .height = block.y,
+            };
+            DrawRectangleRec(cursor, opt->text);
+        }
+
+        pos.y += row_h;
+    }
+
+    str_free(&sb);
+    da_free(&lines);
+
+    // Status area
     Rectangle box = {
         .x      = 0,
-        .y      = GetScreenHeight() - padding,
+        .y      = GetScreenHeight() - status_h,
         .width  = GetScreenWidth(),
-        .height = padding,
+        .height = status_h,
     };
-    DrawRectangleRec(box, ed->opt.fg);
+    DrawRectangleRec(box, opt->mantle);
 
-    float font_size = ed->opt.font_size * 0.8;
-    Vector2 block = MeasureTextEx(ed->opt.font, "A", font_size, 0);
-    Vector2 pos = {
-        .x = padding / 2,
-        .y = GetScreenHeight() - (padding/2) - (block.y/2),
+    pos = (Vector2){
+        .x = padding,
+        .y = GetScreenHeight() - (row_h * 2),
     };
 
     if (ed->mode == MODE_EDIT)
     {
-        DrawTextEx(ed->opt.font, ed->msg.data, pos, font_size, 0, ed->opt.bg);
+        DrawTextEx(opt->font, ed->msg.data, pos, opt->font_size, 0, opt->text);
     }
     else if (ed->mode == MODE_PROMPT)
     {
@@ -323,82 +393,14 @@ static void render_status_area(Editor *ed)
         StringView prompt = buf_getline(ed->prompt.buf, 0);
         str_append(&sb, prompt);
 
-        DrawTextEx(ed->opt.font, sb.data, pos, font_size, 0, ed->opt.bg);
+        DrawTextEx(opt->font, sb.data, pos, opt->font_size, 0, opt->text);
 
         Rectangle cursor = {
-            .x      = pos.x + block.x * (ed->prompt.buf->col + ed->msg.len),
+            .x      = pos.x + col_w * (ed->prompt.buf->col + ed->msg.len),
             .y      = pos.y,
             .width  = 2,
-            .height = block.y,
+            .height = row_h,
         };
-        DrawRectangleRec(cursor, ed->opt.bg);
+        DrawRectangleRec(cursor, opt->text);
     }
-}
-
-// Render the main buffer.
-static void render_buffer(Editor *ed)
-{
-    RenderOpt opt = ed->opt;
-
-    Font font = opt.font;
-
-    Vector2 block = MeasureTextEx(font, "A", opt.font_size, 0);
-    float line_height = line_spacing + block.y;
-
-    float usable_w = GetScreenWidth() - (padding * 2);
-    float usable_h = GetScreenHeight() - (padding * 2);
-    size_t max_cols = usable_w / block.x;
-    size_t max_rows = usable_h / line_height;
-
-    SVList lines;
-    da_init(&lines);
-
-    Vector2 cursor = buf_all_lines(ed->buf, &lines, opt.text_wrap ? max_cols : 0);
-    size_t row = cursor.y, col = cursor.x;
-
-    Vector2 pos = {padding, padding};
-
-    if (row > max_rows)
-        pos.y -= (row - max_rows) * line_height;
-    if (col >= max_cols)
-        pos.x -= (col - max_cols) * block.x;
-
-    ClearBackground(opt.bg);
-
-    String sb;
-    str_init(&sb);
-
-    DA_FOR(&lines, i)
-    {
-        StringView line = lines.data[i];
-        if (opt.text_effect)
-            process_line(&sb, line, 1-(ed->input_rate / max_input_rate));
-        else
-            str_append(&sb, line);
-
-        DrawTextEx(opt.font, sb.data, pos, opt.font_size, 0, opt.fg);
-        str_reset(&sb);
-
-        if (i == row)
-        {
-            Rectangle cursor = {
-                .x      = pos.x + block.x * col,
-                .y      = pos.y,
-                .width  = 2,
-                .height = block.y,
-            };
-            DrawRectangleRec(cursor, opt.fg);
-        }
-
-        pos.y += line_height;
-    }
-
-    str_free(&sb);
-    da_free(&lines);
-}
-
-void editor_render(Editor *ed)
-{
-    render_buffer(ed);
-    render_status_area(ed);
 }
