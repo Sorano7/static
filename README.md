@@ -1,2 +1,2 @@
 # static
-A text editor with too much distractions.
+A text editor that materializes your inner chaos.

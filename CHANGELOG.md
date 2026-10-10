@@ -9,3 +9,5 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/) and this p
 - Basic text editing and line-based actions.
 - Toggleable text wrap.
 - Text-scramble effect that weakens the more active you are.
+- Save and load files.
+- Adjustable font size.
