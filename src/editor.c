@@ -12,7 +12,7 @@ constexpr float max_input_rate    = 100;
 void default_render_opt(RenderOpt *opt)
 {
     *opt = (RenderOpt){
-        .font        = LoadFontEx("res/IosevkaWide-Regular.ttf", 64, NULL, 0),
+        .font        = LoadFontEx("res/IosevkaWide-Regular.ttf", 128, NULL, 0),
         .font_size   = default_font_size,
 
         .bg          = GetColor(0x272e45ff),
@@ -342,7 +342,13 @@ void editor_render(Editor *ed)
     DA_FOR(&lines, i)
     {
         StringView line = lines.data[i];
-        if (opt->text_effect)
+
+        if (i == row)
+        {
+            DrawRectangle(pos.x, pos.y, usable_w, row_h, opt->mantle);
+        }
+
+        if (opt->text_effect && i != row)
             process_line(&sb, line, 1-(ed->input_rate / max_input_rate));
         else
             str_append(&sb, line);
