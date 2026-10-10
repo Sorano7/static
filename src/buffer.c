@@ -137,7 +137,7 @@ static void clamp_target_col(Buffer *buf)
         buf->target_col = line_len;
 }
 
-void buf_move_cursor(Buffer *buf, Direction dir)
+static void move_cursor(Buffer *buf, Direction dir)
 {
     switch (dir)
     {
@@ -171,6 +171,31 @@ void buf_move_cursor(Buffer *buf, Direction dir)
             buf->col = buf->target_col;
             clamp_col(buf);
             break;
+    }
+}
+
+void buf_move_cursor(Buffer *buf, Direction dir, bool by_word)
+{
+    bool left = dir == DIR_LEFT;
+    bool right = dir == DIR_RIGHT;
+    if ((left || right) && by_word)
+    {
+        String *line = get_current_line(buf);
+
+        bool space_start = isspace(line->data[buf->col]);
+        move_cursor(buf, dir);
+
+        while (buf->col > 0 && buf->col < line->len)
+        {
+            if (space_start != isspace(line->data[buf->col]))
+                break;
+
+            move_cursor(buf, dir);
+        }
+    }
+    else
+    {
+        move_cursor(buf, dir);
     }
 }
 
@@ -248,20 +273,39 @@ void buf_delete_chr(Buffer *buf)
     if (buf->col > 0)
     {
         str_remove(line, buf->col-1);
-        buf->col--;
+        set_col(buf, buf->col-1);
         return;
     }
 
     if (buf->lines.len > 1 && buf->row > 0)
     {
         String *prev = buf->lines.data[buf->row-1];
-        buf->col = prev->len;
+        set_col(buf, prev->len);
 
         if (line->len > 0)
             str_append(prev, line);
 
         free_current_line(buf);
         buf->row--;
+    }
+}
+
+void buf_delete_word(Buffer *buf)
+{
+    if (buf->col == 0)
+    {
+        buf_delete_chr(buf);
+        return;
+    }
+
+    String *line = get_current_line(buf);
+    bool space_start = isspace(line->data[buf->col-1]);
+    while (buf->col > 0)
+    {
+        bool space = isspace(line->data[buf->col-1]);
+        if (space_start != space)
+            break;
+        buf_delete_chr(buf);
     }
 }
 

@@ -88,10 +88,16 @@ static void handle_buffer_input(Editor *ed)
 
     if (key_pressed_or_held(KEY_BACKSPACE))
     {
-        if (edit && shift)
-            buf_remove_line(buf);
+        if (edit)
+        {
+            if (shift) buf_remove_line(buf);
+            else if (ctrl) buf_delete_word(buf);
+            else buf_delete_chr(buf);
+        }
         else
+        {
             buf_delete_chr(buf);
+        }
     }
 
     if (key_pressed_or_held(KEY_ENTER))
@@ -125,13 +131,13 @@ static void handle_buffer_input(Editor *ed)
     bool up    = key_pressed_or_held(KEY_UP)    || (ctrl && key_pressed_or_held(KEY_K));
     bool right = key_pressed_or_held(KEY_RIGHT) || (ctrl && key_pressed_or_held(KEY_L));
 
-    if (left)  buf_move_cursor(buf, DIR_LEFT);
-    if (right) buf_move_cursor(buf, DIR_RIGHT);
+    if (left)  buf_move_cursor(buf, DIR_LEFT, ctrl);
+    if (right) buf_move_cursor(buf, DIR_RIGHT, ctrl);
 
     if (edit)
     {
-        if (down)  buf_move_cursor(buf, DIR_DOWN);
-        if (up)    buf_move_cursor(buf, DIR_UP);
+        if (down)  buf_move_cursor(buf, DIR_DOWN, ctrl);
+        if (up)    buf_move_cursor(buf, DIR_UP, ctrl);
     }
 }
 

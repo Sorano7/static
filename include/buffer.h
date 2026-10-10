@@ -44,7 +44,7 @@ typedef enum
 } Direction;
 
 // Move the cursor once in a direction.
-void buf_move_cursor(Buffer *buf, Direction dir);
+void buf_move_cursor(Buffer *buf, Direction dir, bool by_word);
 
 // Insert a character at cursor.
 void buf_insert_chr(Buffer *buf, char c);
@@ -54,6 +54,9 @@ void buf_insert_str(Buffer *buf, const char *str);
 
 // Delete a character at cursor.
 void buf_delete_chr(Buffer *buf);
+
+// Delete a word before the cursor.
+void buf_delete_word(Buffer *buf);
 
 // Split the current line at cursor.
 void buf_split_line(Buffer *buf);
