@@ -26,9 +26,15 @@ void buf_free(Buffer *buf)
     free(buf);
 }
 
+static void set_col(Buffer *buf, size_t col)
+{
+    buf->col = col;
+    buf->target_col = col;
+}
+
 void buf_clear(Buffer *buf)
 {
-    buf->col = 0;
+    set_col(buf, 0);
     buf->row = 0;
     DA_FOREACH(&buf->lines, String *, line)
         str_free(*line);
@@ -107,13 +113,28 @@ static String *get_current_line(Buffer *buf)
 static void clamp_col(Buffer *buf)
 {
     size_t line_len = get_current_line(buf)->len;
-    if (buf->col > line_len) buf->col = line_len;
+    if (buf->target_col > line_len)
+    {
+        buf->col = line_len;
+    }
+    else
+    {
+        if (buf->col < buf->target_col)
+            buf->col = buf->target_col;
+    }
 }
 
 static void clamp_row(Buffer *buf)
 {
     if (buf->row > buf->lines.len - 1)
         buf->row = buf->lines.len - 1;
+}
+
+static void clamp_target_col(Buffer *buf)
+{
+    size_t line_len = get_current_line(buf)->len;
+    if (buf->target_col > line_len)
+        buf->target_col = line_len;
 }
 
 void buf_move_cursor(Buffer *buf, Direction dir)
@@ -135,11 +156,20 @@ void buf_move_cursor(Buffer *buf, Direction dir)
             break;
 
         case DIR_LEFT:
-            if (buf->col > 0) buf->col--;
+            clamp_target_col(buf);
+            if (buf->target_col > 0)
+                buf->target_col--;
+
+            buf->col = buf->target_col;
+            clamp_col(buf);
             break;
 
         case DIR_RIGHT:
-            if (buf->col < get_current_line(buf)->len) buf->col++;
+            clamp_target_col(buf);
+            if (buf->target_col < get_current_line(buf)->len)
+                buf->target_col++;
+            buf->col = buf->target_col;
+            clamp_col(buf);
             break;
     }
 }
@@ -149,6 +179,7 @@ void buf_insert_chr(Buffer *buf, char c)
     String *line = get_current_line(buf);
     str_insert_char(line, (char)c, buf->col);
     buf->col++;
+    buf->target_col++;
 }
 
 void buf_insert_str(Buffer *buf, const char *str)
@@ -180,7 +211,7 @@ void buf_split_line(Buffer *buf)
             str_append_null(line);
         }
     }
-    buf->col = 0;
+    set_col(buf, 0);
 }
 
 void buf_insert_line(Buffer *buf, Direction dir)
@@ -188,7 +219,7 @@ void buf_insert_line(Buffer *buf, Direction dir)
     DEV_MUST(dir == DIR_UP || dir == DIR_DOWN);
     bool below = dir == DIR_DOWN;
     alloc_newline(buf, below ? ++buf->row : buf->row);
-    buf->col = 0;
+    set_col(buf, 0);
 }
 
 static void free_current_line(Buffer *buf)
@@ -202,7 +233,7 @@ void buf_remove_line(Buffer *buf)
     if (buf->lines.len == 1)
     {
         str_reset(get_current_line(buf));
-        buf->col = 0;
+        set_col(buf, 0);
         return;
     }
 
@@ -246,7 +277,7 @@ void buf_load_string(Buffer *buf, String *str)
     }
 
     buf->row = 0;
-    buf->col = 0;
+    set_col(buf, 0);
 }
 
 void buf_to_string(const Buffer *buf, String *out)

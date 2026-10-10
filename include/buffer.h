@@ -10,6 +10,7 @@ DA_DEFINE(LineList, String *);
 typedef struct Buffer
 {
     LineList lines;
+    size_t target_col;
     size_t row, col;
 } Buffer;
 
