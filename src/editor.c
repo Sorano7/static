@@ -1,8 +1,9 @@
 #include "editor.h"
 #include <math.h>
 #include <ctype.h>
+#include "platform.h"
 
-constexpr float padding           = 50;
+constexpr float padding           = 50; // Padding of the main buffer area
 constexpr float line_spacing      = 2;
 constexpr float font_size_step    = 2;
 constexpr float default_font_size = 28;
@@ -28,12 +29,14 @@ void editor_init(Editor *ed, Buffer *buf)
     ed->input_rate = 0;
 
     editor_default_opt(ed);
+    str_init(&ed->msg);
 }
 
 void editor_free(Editor *ed)
 {
     if (!ed) return;
     if (ed->buf) buf_free(ed->buf);
+    str_free(&ed->msg);
 }
 
 void editor_set_opt(Editor *ed, const RenderOpt *opt)
@@ -41,8 +44,21 @@ void editor_set_opt(Editor *ed, const RenderOpt *opt)
     ed->opt = *opt;
 }
 
+// Clear the previous message and set a new message.
+static void set_msg(Editor *ed, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args);
+
+    str_reset(&ed->msg);
+    str_appendvf(&ed->msg, fmt, args);
+
+    va_end(args);
+}
+
 #define key_pressed_or_held(key) (IsKeyPressed(key) || IsKeyPressedRepeat(key))
 
+// Handle user input and hotkeys.
 static void handle_input(Editor *ed)
 {
     Buffer *buf = ed->buf;
@@ -88,29 +104,56 @@ static void handle_input(Editor *ed)
     if (up)    buf_move_cursor(buf, DIR_UP);
     if (right) buf_move_cursor(buf, DIR_RIGHT);
 
-    // UI actions
+    // interface actions
     if (ctrl)
     {
-        if (IsKeyPressed(KEY_L))
+        // Invert colors
+        if (IsKeyPressed(KEY_D))
         {
             Color prev_fg = ed->opt.fg;
             ed->opt.fg = ed->opt.bg;
             ed->opt.bg = prev_fg;
         }
 
+        // Set text wrap
         if (IsKeyPressed(KEY_W))
+        {
             ed->opt.text_wrap = !ed->opt.text_wrap;
+            set_msg(ed, "Text wrap: %s", ed->opt.text_wrap ? "on" : "off");
+        }
 
+        // Toggle text effect (dev only)
         #ifdef _DEV
             if (IsKeyPressed(KEY_P))
                 ed->opt.text_effect = !ed->opt.text_effect;
         #endif
 
-        if (key_pressed_or_held(KEY_EQUAL)) ed->opt.font_size += font_size_step;
-        if (key_pressed_or_held(KEY_MINUS)) ed->opt.font_size -= font_size_step;
+        // Font size
+        bool equal = key_pressed_or_held(KEY_EQUAL);
+        bool minus = key_pressed_or_held(KEY_MINUS);
+
+        if (equal || minus)
+        {
+            ed->opt.font_size += equal ? font_size_step : -font_size_step;
+            set_msg(ed, "Font size: %.0f", ed->opt.font_size);
+        }
+
+        // Load/Save
+        if (IsKeyPressed(KEY_O))
+        {
+            buf_clear(buf);
+            load_from_file(buf, SV("_test.c"));
+            set_msg(ed, "Loaded file: _text.c");
+        }
+        if (IsKeyPressed(KEY_S))
+        {
+            save_to_file(buf, SV("_test.c"));
+            set_msg(ed, "Saved file: _text.c");
+        }
     }
 }
 
+// Increase the input rate by d (adjusted for frame time)
 static void increase_input_rate(Editor *ed, float d)
 {
     ed->input_rate += d * GetFrameTime();
@@ -122,6 +165,7 @@ void editor_update(Editor *ed)
 {
     handle_input(ed);
 
+    // Adjust input rate
     int key;
     while ((key = GetKeyPressed()) > 0)
         increase_input_rate(ed, 500);
@@ -147,10 +191,12 @@ void editor_update(Editor *ed)
         }
     }
 
+    // Decay input rate
     ed->input_rate *= expf(-GetFrameTime() * 1.0f);
     if (ed->input_rate < 0.5) ed->input_rate = 0;
 }
 
+// Random int below n.
 static int rand_below(int n)
 {
     int limit = RAND_MAX - (RAND_MAX % n);
@@ -159,6 +205,7 @@ static int rand_below(int n)
     return r % n;
 }
 
+// Random ascii character that's not c
 static char rand_char(char c)
 {
     int r = 32 + rand_below(94);
@@ -166,6 +213,7 @@ static char rand_char(char c)
     return r;
 }
 
+// Text post-processing for a line.
 static void process_line(String *out, StringView line, float ratio)
 {
     size_t k = llround(ratio * line.len);
@@ -184,6 +232,26 @@ static void process_line(String *out, StringView line, float ratio)
     }
 }
 
+// Render the message in the status area.
+static void render_msg(Editor *ed)
+{
+    Rectangle box = {
+        .x      = 0,
+        .y      = GetScreenHeight() - padding,
+        .width  = GetScreenWidth(),
+        .height = padding,
+    };
+    DrawRectangleRec(box, ed->opt.fg);
+
+    float font_size = ed->opt.font_size * 0.8;
+    float height = MeasureTextEx(ed->opt.font, "A", font_size, 0).y;
+    Vector2 pos = {
+        .x = padding / 2,
+        .y = GetScreenHeight() - (padding/2) - (height/2),
+    };
+    DrawTextEx(ed->opt.font, ed->msg.data, pos, font_size, 0, ed->opt.bg);
+}
+
 void editor_render(Editor *ed)
 {
     RenderOpt opt = ed->opt;
@@ -196,7 +264,7 @@ void editor_render(Editor *ed)
     float usable_w = GetScreenWidth() - (padding * 2);
     float usable_h = GetScreenHeight() - (padding * 2);
     size_t max_cols = usable_w / block.x;
-    size_t max_rows = usable_h / block.y;
+    size_t max_rows = usable_h / line_height;
 
     SVList lines;
     da_init(&lines);
@@ -208,7 +276,7 @@ void editor_render(Editor *ed)
 
     if (row > max_rows)
         pos.y -= (row - max_rows) * line_height;
-    if (col > max_cols)
+    if (col >= max_cols)
         pos.x -= (col - max_cols) * block.x;
 
     ClearBackground(opt.bg);
@@ -243,4 +311,6 @@ void editor_render(Editor *ed)
 
     str_free(&sb);
     da_free(&lines);
+
+    render_msg(ed);
 }

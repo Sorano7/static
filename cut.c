@@ -11,6 +11,7 @@ void config(CutUnit *u)
 {
     cut_unit_sources(u, "src/main.c");
     cut_unit_sources(u,"src/editor.c", "src/buffer.c");
+    cut_unit_sources(u, "src/platform.c");
 
     cut_unit_includes(u, "include");
     cut_unit_defines(u, "_DEFAULT_SOURCE");

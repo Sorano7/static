@@ -26,6 +26,15 @@ void buf_free(Buffer *buf)
     free(buf);
 }
 
+void buf_clear(Buffer *buf)
+{
+    buf->col = 0;
+    buf->row = 0;
+    DA_FOREACH(&buf->lines, String *, line)
+        str_free(*line);
+    buf->lines.len = 1;
+}
+
 size_t buf_line_count(const Buffer *buf)
 {
     return buf->lines.len;
@@ -222,5 +231,31 @@ void buf_delete_chr(Buffer *buf)
 
         free_current_line(buf);
         buf->row--;
+    }
+}
+
+void buf_load_string(Buffer *buf, String *str)
+{
+    StringView sv = SV(str);
+    while (sv.len > 0)
+    {
+        StringView line = sv_split(&sv, '\n');
+        SV_TO_CSTR(line, s);
+        buf_insert_str(buf, s);
+        if (sv.len > 0) buf_split_line(buf);
+    }
+
+    buf->row = 0;
+    buf->col = 0;
+}
+
+void buf_to_string(const Buffer *buf, String *out)
+{
+    DA_FOR(&buf->lines, i)
+    {
+        String *line = buf->lines.data[i];
+        str_append(out, line);
+        if (i < buf->lines.len-1)
+            str_append(out, "\n");
     }
 }
