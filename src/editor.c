@@ -96,9 +96,10 @@ static void handle_buffer_input(Editor *ed)
         {
             if (ed->prompt.cb)
             {
+                str_reset(&ed->msg);
+
                 StringView input = buf_getline(ed->prompt.buf, 0);
                 ed->prompt.cb(ed, input, ed->prompt.ud);
-                str_reset(&ed->msg);
             }
             ed->mode = MODE_EDIT;
         }
@@ -156,7 +157,6 @@ static void on_load(Editor *ed, StringView path, void *ud)
     (void)ud;
     if (path.len == 0) return;
 
-    buf_clear(ed->buf);
     bool ok = load_from_file(ed->buf, path);
     set_msg(ed, "%s: "SV_FMT, ok ? "Loaded" : "Failed to load", SV_ARG(path));
 }

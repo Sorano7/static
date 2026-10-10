@@ -34,6 +34,7 @@ bool load_from_file(Buffer *buf, StringView path)
         return false;
     }
 
+    buf_clear(buf);
     buf_load_string(buf, &sb);
     str_free(&sb);
     return true;
