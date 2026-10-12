@@ -654,14 +654,19 @@ CutFPResult cut_fp_parse(CutFlagParser *fp, int argc, char **argv, SVList *out);
 #include <stddef.h>
 #include <time.h>
 #include <errno.h>
+#include <ctype.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 
 #ifdef _WIN32
     #include <io.h>
     #include <ctype.h>
-    #include <windows.h>
     #include <direct.h>
+
+    #ifndef CUT_NO_BUILD
+        #define WIN32_LEAN_AND_MEAN
+        #include <windows.h>
+    #endif
 
     #define isatty     _isatty
     #define fileno     _fileno
@@ -671,7 +676,7 @@ CutFPResult cut_fp_parse(CutFlagParser *fp, int argc, char **argv, SVList *out);
 #else
     #include <unistd.h>
     #include <limits.h>
-    #include <ctype.h>
+
     #define makedir(x) mkdir(x, 0755)
 #endif // _WIN32
 
@@ -1027,12 +1032,12 @@ static void command_format(SVList *sl, String *sb, StringView prefix)
 
 #ifndef CUT_NO_BUILD
 
+#define PATH_SEP_C '/'
+
 #ifdef _WIN32
     #define PATH_SEP "\\"
-    #define PATH_SEP_C '\\'
 #else
     #define PATH_SEP "/"
-    #define PATH_SEP_C '/'
 #endif
 
 // Get the mtime of a file, return -1 if error.
