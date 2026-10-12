@@ -2,7 +2,7 @@
 #include "include/cut.h"
 
 #ifdef _WIN32
-    #define RAYLIB_DEPS "raylib" "opengl32" "gdi32" "winmm" "user32" "shell32"
+    #define RAYLIB_DEPS "raylib", "opengl32", "gdi32", "winmm", "user32", "shell32"
 #else
     #define RAYLIB_DEPS "raylib", "GL", "m", "pthread", "dl", "rt", "X11"
 #endif

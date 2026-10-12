@@ -1,7 +1,8 @@
+#define CUT_UTILS_ONLY
+
 #include <raylib.h>
 #include "editor.h"
 
-#define CUT_UTILS_ONLY
 #define CUT_IMPL
 #include "cut.h"
 

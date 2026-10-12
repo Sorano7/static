@@ -1017,7 +1017,7 @@ bool svlist_contains(SVList *sl, StringView v)
 }
 
 // Format the string list into a whitespace-separated string.
-static void command_format(SVList *sl, String *sb, StringView prefix)
+static inline void command_format(SVList *sl, String *sb, StringView prefix)
 {
     DA_FOR(sl, i)
     {
